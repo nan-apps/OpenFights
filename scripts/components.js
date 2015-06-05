@@ -28,6 +28,12 @@ Player = {
     x: 50 //margin
 };
 
+PowerBar = {
+    w:0,
+    h:5,
+    x: 50 //margin
+};
+
 Crafty.c('Global', {
     init: function() {
         this.requires('2D, DOM, Color');
@@ -45,6 +51,7 @@ Crafty.c('Player', {
     eShield: null,
     startTimerFire: null,  
     pColor: null,
+    powerBar: null,
     init: function() {
         e = this;
         this.requires('Global, Collision, Keyboard, Text');
@@ -53,11 +60,7 @@ Crafty.c('Player', {
             '-moz-border-radius': '10px',
             'border-radius': '10px'
         });
-        this.attr({ z : 2 });
-        this.onHit('Fire', function( ammo ) {
-            var damage = ammo[0].obj.w;
-            this.harm( damage );
-        });    
+        this.attr({ z : 2 });           
     },
     at: function(id, x, y, color) {
         this.id = id;
@@ -76,10 +79,13 @@ Crafty.c('Player', {
                                                                          .textColor( '#FFFFFF', 1 )
                                                                          .textFont({ size: '15px', weight: 'bold' });
         
+        this.powerBar = Crafty.e('PowerBar').at( this );
+        
         return this;
     },    
     chargeFire: function(){
         this.startTimerFire = new Date().getTime();  
+        this.powerBar.increase();
     },        
     fire: function() {
         Crafty.e('Fire').ammo( this );
@@ -95,17 +101,57 @@ Crafty.c('Player', {
 
         this.life = this.life - damage;
         this.scoreText.text( this.life );
-        if (this.life < 0)
-            this.destroy();
+        if (this.life < 0){
+            this.death();
+        }
+    },
+    death: function(){
+        this.scoreText.text( 'RIP' );        
+        Game.player1.unbind('KeyDown').unbind('KeyUp');
+        Game.player2.unbind('KeyDown').unbind('KeyUp');
     }
 });
 
+
+Crafty.c('PowerBar', {
+    width: PowerBar.w,
+    height: PowerBar.h,
+    xPos:null,
+    yPos:null,
+    init:function(){
+        this.requires('Global, Tween');
+        this.attr({             
+            w : this.width,
+            h : this.height,
+            z : 3
+        });     
+        fb(this);
+    },
+    at: function( player ){
+        this.xPos = player.xPos
+        this.yPos = player.yPos + Player.h + 20
+        this.attr({ 
+            x : this.xPos,
+            y : this.yPos
+        });           
+        this.color(player.pColor );
+        
+        return this;
+    },
+    increase: function(){
+        this.tween( {w: Player.w}, 1500 ); 
+    },
+    reset: function(){
+        this.cancelTween('w');
+        this.attr( { w : 0 } ); 
+    }
+});    
 
 Crafty.c('Fire', {        
     player: null,
     damage: null,     
     power:5,
-    speed: 100,     
+    speed: 2300,     
     init: function() {
         this.requires('Global, Collision, Tween');
         this.css({
@@ -113,11 +159,12 @@ Crafty.c('Fire', {
             '-moz-border-radius': '5px',
             'border-radius': '5px'
         });
-        this.onHit('Player', function(obj) {
+        this.onHit('Player', function( player ) {            
+            var damage = this.w;
+            player[0].obj.harm( damage );
             this.destroy();
         });
-        this.onHit('Shield', function( shield ) {
-            
+        this.onHit('Shield', function( shield ) {            
             if( this.player.id == shield[0].obj.player.id )
                 return;
             
@@ -159,6 +206,8 @@ Crafty.c('Fire', {
         });
         
         this.tween( {x: direction}, this.speed );
+        
+        player.powerBar.reset();
         
         this.color( player.pColor );
         
